@@ -65,14 +65,15 @@ class GenerateResponse(BaseModel):
     filename: str
     saved_path: str
 
-
+# Generate image endpoint
 @app.post("/generate", response_model=GenerateResponse)
 async def generate_image(request: GenerateRequest):
     if pipe is None:
+        # If the model is not loaded, raise an HTTP exception
         raise HTTPException(status_code=503, detail="Model is not loaded yet.")
 
     logger.info(f"Generating image for prompt: {request.prompt[:80]}...")
-
+    # Generate the image
     result = pipe(
         prompt=request.prompt,
         negative_prompt=request.negative_prompt,
@@ -82,23 +83,27 @@ async def generate_image(request: GenerateRequest):
         guidance_scale=request.guidance_scale,
     )
     image: Image.Image = result.images[0]
-
+    # Create a slug for the filename
     slug = hashlib.md5(request.prompt.encode()).hexdigest()[:12]
     filename = f"blog_{slug}.png"
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+    # Save the image to the output directory
     saved_path = os.path.join(OUTPUT_DIR, filename)
     image.save(saved_path)
 
+    # Convert the image to a base64 string
     buffered = io.BytesIO()
     image.save(buffered, format="PNG")
     img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
+    # Return the image base64 string
     logger.info(f"Image saved to {saved_path}")
     return GenerateResponse(image_base64=img_base64, filename=filename, saved_path=saved_path)
 
-
+# Health check endpoint
 @app.get("/health")
 async def health():
+    # Return the health status
     return {
         "status": "healthy",
         "model_loaded": pipe is not None,
