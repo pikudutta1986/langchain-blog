@@ -1,0 +1,172 @@
+services:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # MySQL 8 – persistent blog storage
+  # ────────────────────────────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: blog_mysql
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE:      ${MYSQL_DATABASE:-blog_db}
+      MYSQL_USER:          ${MYSQL_USER:-blog_user}
+      MYSQL_PASSWORD:      ${MYSQL_PASSWORD:-blog_password}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root",
+             "--password=${MYSQL_ROOT_PASSWORD:-rootpassword}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Ollama – LLM inference engine
+  # Models are stored on the host at ./ai-models/ollama so they persist across
+  # container rebuilds and are not re-downloaded every time.
+  # ────────────────────────────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: blog_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./ai-models/ollama:/root/.ollama   # ← models stored on host disk
+    # ── Uncomment if you have an NVIDIA GPU ───────────────────────────────────
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  # ── Pull required Ollama models on first start ───────────────────────────────
+  ollama-init:
+    image: curlimages/curl:latest
+    container_name: blog_ollama_init
+    restart: "no"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Pulling ${RESEARCH_MODEL:-llama3.2} (Research Agent) ..."
+        curl -s -X POST http://ollama:11434/api/pull \
+          -d "{\"name\":\"${RESEARCH_MODEL:-llama3.2}\"}" --no-buffer
+        echo ""
+        echo "Pulling ${WRITING_MODEL:-mistral} (Writing Agent) ..."
+        curl -s -X POST http://ollama:11434/api/pull \
+          -d "{\"name\":\"${WRITING_MODEL:-mistral}\"}" --no-buffer
+        echo ""
+        echo "Model pull complete."
+    env_file: .env
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # textgen – Text Generation Microservice
+  # A thin FastAPI wrapper over Ollama's /api/chat endpoint.
+  # The app/ orchestrator sends text prompts here; this service forwards them
+  # to Ollama and returns the generated text.
+  # ────────────────────────────────────────────────────────────────────────────
+  textgen:
+    build:
+      context: ./textgen
+      dockerfile: Dockerfile
+    container_name: blog_textgen
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      DEFAULT_MODEL:   ${WRITING_MODEL:-mistral}
+    depends_on:
+      ollama:
+        condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # imagegen – Image Generation Microservice
+  # Runs Stable Diffusion (diffusers). Accepts a text prompt and writes the
+  # generated PNG to the shared blog-images volume.
+  # SD model weights are stored on the host at ./ai-models/stable-diffusion
+  # so they survive container rebuilds without re-downloading.
+  # ────────────────────────────────────────────────────────────────────────────
+  imagegen:
+    build:
+      context: ./imagegen
+      dockerfile: Dockerfile
+    container_name: blog_imagegen
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    env_file: .env
+    environment:
+      MODEL_ID: ${SD_MODEL_ID:-runwayml/stable-diffusion-v1-5}
+      HF_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      - ./ai-models/stable-diffusion:/app/models   # ← SD weights stored on host
+      - blog_images:/app/output                    # ← generated images
+    # ── Uncomment if you have an NVIDIA GPU ───────────────────────────────────
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # app – LangChain Workflow Orchestrator
+  # Contains all pipeline logic and agents:
+  #   • ResearchAgent  – trending topics via pytrends + DuckDuckGo
+  #   • WritingAgent   – blog post via → textgen microservice
+  #   • ImageAgent     – header image via → imagegen microservice
+  #   • DatabaseAgent  – saves everything to MySQL
+  # ────────────────────────────────────────────────────────────────────────────
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: blog_app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TEXTGEN_URL:    http://textgen:8000
+      IMAGEGEN_URL:   http://imagegen:8001
+      MYSQL_HOST:     mysql
+      MYSQL_PORT:     3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-blog_db}
+      MYSQL_USER:     ${MYSQL_USER:-blog_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-blog_password}
+      RESEARCH_MODEL: ${RESEARCH_MODEL:-llama3.2}
+      WRITING_MODEL:  ${WRITING_MODEL:-mistral}
+    volumes:
+      - blog_images:/app/images    # same volume as imagegen output
+    depends_on:
+      mysql:
+        condition: service_healthy
+      textgen:
+        condition: service_started
+      imagegen:
+        condition: service_started
+
+# ── Named volumes ──────────────────────────────────────────────────────────────
+volumes:
+  mysql_data:
+  blog_images:    # shared between imagegen (writes) and app (reads)

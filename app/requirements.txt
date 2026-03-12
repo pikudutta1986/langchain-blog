@@ -1,0 +1,26 @@
+# LangChain – workflow orchestration and tooling
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-core>=0.3.0
+
+# Web search for the Research Agent
+duckduckgo-search
+beautifulsoup4
+requests
+
+# Trending topic discovery
+pytrends
+
+# HTTP client – calls textgen and imagegen microservices
+httpx
+
+# Database
+sqlalchemy
+pymysql
+
+# Config & environment
+python-dotenv
+pydantic-settings
+
+# Image handling (saving/processing returned images)
+Pillow
