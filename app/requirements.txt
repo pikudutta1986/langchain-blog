@@ -1,3 +1,7 @@
+# API server
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+
 # LangChain – workflow orchestration
 langchain>=0.3.0
 langchain-community>=0.3.0
@@ -15,10 +19,6 @@ requests
 
 # Trending topic discovery
 pytrends
-
-# Database
-sqlalchemy
-pymysql
 
 # Config & environment
 python-dotenv

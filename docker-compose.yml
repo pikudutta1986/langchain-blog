@@ -1,41 +1,17 @@
 services:
 
   # ────────────────────────────────────────────────────────────────────────────
-  # MySQL 8 – persistent blog storage
-  # ────────────────────────────────────────────────────────────────────────────
-  mysql:
-    image: mysql:8.0
-    container_name: blog_mysql
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
-      MYSQL_DATABASE:      ${MYSQL_DATABASE:-blog_db}
-      MYSQL_USER:          ${MYSQL_USER:-blog_user}
-      MYSQL_PASSWORD:      ${MYSQL_PASSWORD:-blog_password}
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root",
-             "--password=${MYSQL_ROOT_PASSWORD:-rootpassword}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-
-  # ────────────────────────────────────────────────────────────────────────────
-  # app – LangChain Workflow Orchestrator
-  # All AI tasks (research, writing, image generation) are handled via the
-  # Gemini API — no local model servers needed.
+  # app – LangChain Blog Automation API
+  #
+  # POST /generate   { "category": "technology" }
+  # → runs the pipeline and returns blog data as JSON
   #
   # Agents:
-  #   • ResearchAgent  – trending topics (pytrends + DuckDuckGo + Gemini)
-  #   • WritingAgent   – blog post generation (Gemini gemini-2.0-flash)
-  #   • ImageAgent     – header image (Gemini Imagen 3)
-  #   • DatabaseAgent  – saves everything to MySQL
+  #   • ResearchAgent  – finds the best trending topic in the given category
+  #   • WritingAgent   – writes a full blog post (Gemini gemini-2.0-flash)
+  #   • ImageAgent     – generates a header image (Gemini Imagen 3)
+  #
+  # Errors are written to ./logs/pipeline_errors.log on the host.
   # ────────────────────────────────────────────────────────────────────────────
   app:
     build:
@@ -48,18 +24,12 @@ services:
       GEMINI_API_KEY:     ${GEMINI_API_KEY}
       GEMINI_TEXT_MODEL:  ${GEMINI_TEXT_MODEL:-gemini-2.0-flash}
       GEMINI_IMAGE_MODEL: ${GEMINI_IMAGE_MODEL:-imagen-3.0-generate-002}
-      MYSQL_HOST:         mysql
-      MYSQL_PORT:         3306
-      MYSQL_DATABASE:     ${MYSQL_DATABASE:-blog_db}
-      MYSQL_USER:         ${MYSQL_USER:-blog_user}
-      MYSQL_PASSWORD:     ${MYSQL_PASSWORD:-blog_password}
+    ports:
+      - "8000:8000"
     volumes:
-      - blog_images:/app/images   # generated blog header images
-    depends_on:
-      mysql:
-        condition: service_healthy
+      - blog_images:/app/images     # generated header images
+      - ./logs:/app/logs            # pipeline_errors.log visible on host
 
 # ── Named volumes ──────────────────────────────────────────────────────────────
 volumes:
-  mysql_data:
   blog_images:
