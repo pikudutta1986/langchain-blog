@@ -1,57 +1,61 @@
 """
 Image Agent
-- Calls the imagegen microservice (Stable Diffusion)
-- The microservice saves the image directly to the shared volume
-- Returns filename and base64 data for database storage
+- Uses the Gemini Imagen 3 API to generate a blog header image
+- Saves the PNG to /app/images/ (Docker volume for persistence)
+- Returns filename, saved path, and base64 data for database storage
 """
+import base64
+import hashlib
 import logging
-import httpx
+import os
+from google import genai
+from google.genai import types
 from config import settings
 
 logger = logging.getLogger(__name__)
 
-TIMEOUT = 300  # SD inference on CPU is slow
+OUTPUT_DIR = "/app/images"
 
 
 class ImageAgent:
     def __init__(self) -> None:
-        self.base_url = settings.imagegen_url
+        self.client = genai.Client(api_key=settings.gemini_api_key)
+        self.model = settings.gemini_image_model
 
     def run(self, image_prompt: str, topic: str) -> dict:
-        logger.info(f"Requesting image for: {image_prompt[:80]}...")
+        logger.info(f"Generating image for: {image_prompt[:80]}...")
 
-        enhanced = (
-            f"{image_prompt}, professional blog header, high quality, "
-            "4k, detailed, modern design, technology theme"
+        enhanced_prompt = (
+            f"{image_prompt}, professional blog header image, "
+            "high quality, 4k, modern design, technology theme, no text"
         )
 
-        payload = {
-            "prompt": enhanced,
-            "negative_prompt": "blurry, low quality, watermark, text, logo, distorted, ugly",
-            "width": 768,
-            "height": 512,
-            "num_inference_steps": 30,
-            "guidance_scale": 7.5,
-        }
-
-        response = httpx.post(
-            f"{self.base_url}/generate",
-            json=payload,
-            timeout=TIMEOUT,
+        response = self.client.models.generate_images(
+            model=self.model,
+            prompt=enhanced_prompt,
+            config=types.GenerateImagesConfig(
+                number_of_images=1,
+                aspect_ratio="16:9",
+                safety_filter_level="BLOCK_MEDIUM_AND_ABOVE",
+                person_generation="DONT_ALLOW",
+            ),
         )
-        response.raise_for_status()
-        data = response.json()
 
-        logger.info(f"Image generated and saved: {data['filename']}")
+        image_bytes = response.generated_images[0].image.image_bytes
+
+        slug = hashlib.md5(topic.encode()).hexdigest()[:12]
+        filename = f"blog_{slug}.png"
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        saved_path = os.path.join(OUTPUT_DIR, filename)
+
+        with open(saved_path, "wb") as f:
+            f.write(image_bytes)
+
+        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+
+        logger.info(f"Image saved to {saved_path}")
         return {
-            "filename": data["filename"],
-            "image_base64": data["image_base64"],
-            "saved_path": data["saved_path"],
+            "filename": filename,
+            "saved_path": saved_path,
+            "image_base64": image_base64,
         }
-
-    def health_check(self) -> bool:
-        try:
-            r = httpx.get(f"{self.base_url}/health", timeout=10)
-            return r.json().get("model_loaded", False)
-        except Exception:
-            return False
