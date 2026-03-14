@@ -82,6 +82,7 @@ class ImageAgent:
         images = self.model.generate_images(
             prompt=enhanced_prompt,
             number_of_images=1,
+            aspect_ratio="16:9",
         )
 
         os.makedirs(OUTPUT_DIR, exist_ok=True)
