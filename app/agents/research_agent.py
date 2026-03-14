@@ -65,7 +65,7 @@ class ResearchAgent:
             SystemMessage(
                 content=(
                     "You are an expert research assistant for a technology blog. "
-                    "Analyse the provided search results and return a structured summary."
+                    "Analyse the provided search results, latest news and return a structured summary."
                 )
             ),
             HumanMessage(

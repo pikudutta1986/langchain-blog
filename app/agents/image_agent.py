@@ -76,8 +76,7 @@ class ImageAgent:
         logger.info(f"Generating image with {self.model_id} | prompt: {image_prompt[:80]}...")
 
         enhanced_prompt = (
-            f"{image_prompt}, professional blog header image, "
-            "high quality, 4k, modern design, technology theme, no text"
+            f"{image_prompt}, professional blog header image, with aspect ratio 16:9, some text on the image, in a modern tech style"
         )
 
         images = self.model.generate_images(

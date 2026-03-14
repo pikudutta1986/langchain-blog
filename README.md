@@ -410,8 +410,50 @@ Use `$post_id` and `$featured_image_id` to do any further processing (e.g. updat
 
 ---
 
+### Troubleshooting
+
+**"There has been a critical error on this website."**
+
+WordPress hides the real error by default. Set `DEBUG_MODE` to `true` at the top of the file to reveal it:
+
+```php
+define('DEBUG_MODE', true);
+```
+
+This enables `display_errors` and `error_reporting(E_ALL)` so the actual PHP / WordPress error is shown in the browser instead of the generic critical error screen. Set it back to `false` once the issue is resolved.
+
+---
+
+**Common causes on a remote server**
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| cURL error / connection refused | `localhost:8000` doesn't reach the API from the remote server | Change `$API_URL` to the actual IP or hostname of the machine running Docker |
+| PHP fatal error / white screen | PHP execution timeout | `set_time_limit(0)` is already set — check your host's `max_execution_time` in `php.ini` |
+| PHP out of memory | Base64 image payload is large | `memory_limit` is set to `512M` — raise it in `php.ini` if needed |
+| `wp_upload_bits` error | WordPress uploads directory not writable | `chmod 755 wp-content/uploads` on the server |
+
+**Setting the correct API URL**
+
+If WordPress and the Docker API are on **different machines**, update `$API_URL` near the top of `generate.php`:
+
+```php
+$API_URL = 'http://YOUR_API_SERVER_IP:8000/generate';
+```
+
+Or define it in `wp-config.php` to keep it out of the file:
+
+```php
+// in wp-config.php
+define('BLOG_API_URL', 'http://192.168.1.10:8000/generate');
+```
+
+`generate.php` will automatically use the `BLOG_API_URL` constant if it is defined.
+
+---
+
 ### Requirements
 
 - PHP 8.0+ with the `curl` extension enabled
 - WordPress 5.0+
-- The LangChain API must be reachable at `http://localhost:8000` from the server running WordPress (adjust `$API_URL` at the top of the file if they run on different hosts)
+- The LangChain API must be reachable from the server running WordPress
