@@ -245,7 +245,7 @@ All settings are in `.env`. Only `GEMINI_API_KEY` is required.
 | `fastapi` + `uvicorn` | API server |
 | `langchain`, `langchain-google-genai` | LangChain orchestration + Gemini text |
 | `google-genai` | Gemini Imagen 3 image generation |
-| `langchain-community` | DuckDuckGo search tool |
+| `langchain-community` + `ddgs` | DuckDuckGo search tool |
 | `pytrends` | Google Trends topic discovery |
 | `pydantic-settings` | Environment-based config |
 | `Pillow` | Image file handling |

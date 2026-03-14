@@ -8,12 +8,14 @@ langchain-community>=0.3.0
 langchain-core>=0.3.0
 langchain-google-genai>=2.0.0
 
-# Gemini API – text (via LangChain) and image generation (Imagen 3)
+# Gemini API – text generation via LangChain
 google-generativeai>=0.8.0
-google-genai>=1.0.0
+
+# Vertex AI – Imagen image generation
+google-cloud-aiplatform
 
 # Web search for the Research Agent
-duckduckgo-search
+ddgs
 beautifulsoup4
 requests
 

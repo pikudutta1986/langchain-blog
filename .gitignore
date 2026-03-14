@@ -1,1 +1,8 @@
+# Environment files
 .env
+
+# GCP credentials — never commit service account keys
+credentials/service_account.json
+
+# Generated images and logs
+logs/

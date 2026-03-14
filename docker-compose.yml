@@ -6,10 +6,8 @@ services:
   # POST /generate   { "category": "technology" }
   # → runs the pipeline and returns blog data as JSON
   #
-  # Agents:
-  #   • ResearchAgent  – finds the best trending topic in the given category
-  #   • WritingAgent   – writes a full blog post (Gemini gemini-2.0-flash)
-  #   • ImageAgent     – generates a header image (Gemini Imagen 3)
+  # Text generation : Gemini API (gemini-2.5-flash)
+  # Image generation: Vertex AI Imagen (google-cloud-aiplatform)
   #
   # Errors are written to ./logs/pipeline_errors.log on the host.
   # ────────────────────────────────────────────────────────────────────────────
@@ -21,14 +19,21 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      GEMINI_API_KEY:     ${GEMINI_API_KEY}
-      GEMINI_TEXT_MODEL:  ${GEMINI_TEXT_MODEL:-gemini-2.0-flash}
-      GEMINI_IMAGE_MODEL: ${GEMINI_IMAGE_MODEL:-imagen-3.0-generate-002}
+      # Gemini text models
+      GEMINI_API_KEY:    ${GEMINI_API_KEY}
+      GEMINI_TEXT_MODEL: ${GEMINI_TEXT_MODEL:-gemini-2.0-flash}
+      # Vertex AI image generation
+      GCP_PROJECT_ID:    ${GCP_PROJECT_ID}
+      GCP_LOCATION:      ${GCP_LOCATION:-us-central1}
+      IMAGEN_MODEL:      ${IMAGEN_MODEL:-imagen-3.0-generate-001}
+      # GCP credentials (points to the mounted service account JSON)
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/app/credentials/service_account.json}
     ports:
       - "8000:8000"
     volumes:
-      - blog_images:/app/images     # generated header images
-      - ./logs:/app/logs            # pipeline_errors.log visible on host
+      - blog_images:/app/images       # generated header images
+      - ./logs:/app/logs              # pipeline_errors.log visible on host
+      - ./credentials:/app/credentials:ro  # GCP service account JSON key
 
 # ── Named volumes ──────────────────────────────────────────────────────────────
 volumes:
