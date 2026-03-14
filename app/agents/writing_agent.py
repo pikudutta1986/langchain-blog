@@ -20,7 +20,7 @@ Your posts must include:
 - Multiple H2 sections with detailed content
 - A conclusion section
 - Smooth transitions between sections
-Keep the tone professional yet approachable. Aim for 800-1200 words."""
+Keep the tone professional yet approachable. Aim for 2000 words."""
 
 
 class WritingAgent:
