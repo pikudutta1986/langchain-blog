@@ -28,3 +28,6 @@ pydantic-settings
 
 # Image handling
 Pillow
+
+# Social media posting agents
+tweepy>=4.14.0
